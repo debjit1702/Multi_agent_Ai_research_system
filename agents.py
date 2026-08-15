@@ -1,31 +1,66 @@
+import os
+
 from langchain.agents import create_agent
-from langchain_xai import ChatXAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from tools import web_search, scrape_url
 from dotenv import load_dotenv
+
+from tools import web_search, scrape_url
 
 load_dotenv()
 
+try:
+    from langchain_groq import ChatGroq
+except ImportError:  # pragma: no cover
+    ChatGroq = None
+
+try:
+    from langchain_xai import ChatXAI
+except ImportError:  # pragma: no cover
+    ChatXAI = None
+
+
+def _build_llm():
+    groq_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_api_key")
+    if groq_key:
+        if ChatGroq is None:
+            raise RuntimeError("Groq support is not installed. Install langchain-groq in the environment.")
+        return ChatGroq(
+            model="llama-3.3-70b-versatile",
+            api_key=groq_key,
+            temperature=0,
+        )
+
+    xai_key = os.getenv("XAI_API_KEY") or os.getenv("GROK_API_KEY") or os.getenv("xai_api_key")
+    if xai_key:
+        if ChatXAI is None:
+            raise RuntimeError("xAI support is not installed. Install langchain-xai in the environment.")
+        return ChatXAI(
+            model="grok-4.5",
+            api_key=xai_key,
+            temperature=0,
+        )
+
+    raise RuntimeError(
+        "Missing API key. Add GROQ_API_KEY or XAI_API_KEY to your .env file before running the pipeline."
+    )
+
 
 #model_setup
-llm = ChatXAI(
-    model="grok-4.5", # Replace with your active xAI model identifier
-    temperature= 0
-)  
+llm = _build_llm()
 
 #list agent
 def build_search_agent():
     return create_agent(
         model=llm,
-        tools= [web_search],
+        tools=[web_search],
     )
 
 #2nd agent
 def build_reader_agent():
     return create_agent(
         model=llm,
-        tools= [scrape_url]
+        tools=[scrape_url]
     )
 
 
