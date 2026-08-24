@@ -70,19 +70,19 @@ If the above doesn't work, try the module-based approach:
 
 To run on a different port:
 ```bash
-streamlit run app.py --server.port 8000
+python -m streamlit run app.py --server.port 8000
 ```
 
 #### Headless Mode (No Browser Auto-Open)
 
 ```bash
-streamlit run app.py --logger.level=error
+python -m streamlit run app.py --server.headless true
 ```
 
 #### Running via Direct Python
 
 ```bash
-python app.py
+python -m streamlit run app.py
 ```
 
 ### Using the Application
