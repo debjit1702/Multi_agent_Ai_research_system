@@ -110,9 +110,7 @@ python -m streamlit run app.py
 
 ## 🏗️ Detailed Architecture
 
-### System Overview
-
-The system is built on a **modular, agent-based architecture** using LangChain for orchestration and specialized agents for each research phase. Each agent is equipped with specific tools and prompts to complete its task effectively.
+c tools and prompts to complete its task effectively.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
