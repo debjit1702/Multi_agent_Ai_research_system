@@ -14,11 +14,16 @@ import streamlit as st
 from pipeline import run_research_pipeline
 
 
+# set_page_config MUST be the first Streamlit call.
+# We use query_params to carry the sidebar state across reruns.
+_params = st.query_params
+_show_hist = _params.get("hist", "0") == "1"
+
 st.set_page_config(
     page_title="Agentic Research Studio",
     page_icon="🧠",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded" if _show_hist else "collapsed",
 )
 
 # ─── CSS ─────────────────────────────────────────────────────────────────────
@@ -55,6 +60,77 @@ st.markdown(
 
     #MainMenu, footer, header, .stDeployButton,
     [data-testid="collapsedControl"] { display: none !important; }
+    /* Also hide the sidebar arrow toggle button — history opens via nav button only */
+    button[kind="header"],
+    [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+
+    /* ── Sidebar as history drawer ── */
+    [data-testid="stSidebar"] {
+        background: #0c1525 !important;
+        border-right: 1px solid var(--border) !important;
+        min-width: 320px !important;
+        max-width: 340px !important;
+        padding: 0 !important;
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        padding: 1.5rem 1.25rem !important;
+        background: #0c1525 !important;
+    }
+    [data-testid="stSidebar"] * { font-family: 'Inter', sans-serif !important; }
+
+    /* Sidebar item cards */
+    .hist-card {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.6rem;
+        cursor: pointer;
+        transition: border-color 0.18s ease, background 0.18s ease;
+    }
+    .hist-card:hover { border-color: var(--blue); background: rgba(59,130,246,0.06); }
+    .hist-card-header { display: flex; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.3rem; }
+    .hist-card-title { font-size: 0.82rem; font-weight: 600; color: var(--text); line-height: 1.3; flex: 1; }
+    .hist-card-date  { font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
+    .hist-card-preview { font-size: 0.72rem; color: var(--text-muted); line-height: 1.4;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+    /* Sidebar load button */
+    [data-testid="stSidebar"] .stButton > button {
+        background: transparent !important;
+        border: 1px solid var(--border-2) !important;
+        color: var(--text-muted) !important;
+        font-size: 0.78rem !important;
+        padding: 0.35rem 0.75rem !important;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        width: 100% !important;
+        text-align: left !important;
+        justify-content: flex-start !important;
+        margin-bottom: 0 !important;
+        box-shadow: none !important;
+        transition: all 0.15s ease !important;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background: rgba(59,130,246,0.08) !important;
+        border-color: var(--blue) !important;
+        color: var(--blue) !important;
+        transform: none !important;
+        box-shadow: none !important;
+    }
+    /* Close button in sidebar — red tint */
+    [data-testid="stSidebar"] .stButton:first-of-type > button {
+        color: var(--text-muted) !important;
+        border-color: var(--border) !important;
+        font-size: 0.8rem !important;
+        margin-bottom: 1rem !important;
+    }
+    [data-testid="stSidebar"] .stButton:first-of-type > button:hover {
+        background: rgba(239,68,68,0.1) !important;
+        border-color: var(--red) !important;
+        color: var(--red) !important;
+    }
+    [data-testid="stSidebar"] .stDivider { border-color: var(--border) !important; }
 
     .stApp {
         background: var(--bg) !important;
@@ -395,7 +471,9 @@ with _c3:
     _sample_btn = st.button("✨ Sample", key="nav-sample", use_container_width=True)
 
 if _hist_btn:
-    st.session_state.show_history = not st.session_state.show_history
+    new_state = not st.session_state.show_history
+    st.session_state.show_history = new_state
+    st.query_params["hist"] = "1" if new_state else "0"
     st.rerun()
 if _sample_btn:
     st.session_state.sample_topic = "Autonomous Agentic Workflows in 2026"
@@ -430,56 +508,73 @@ if st.session_state.toast_msg:
     st.session_state.toast_msg = ""
 
 
-# ─── History drawer ───────────────────────────────────────────────────────────
+# ─── History sidebar ─────────────────────────────────────────────────────────
+# Uses Streamlit's native sidebar so interactive buttons work correctly.
 
 if st.session_state.show_history:
-    st.markdown('<div class="history-overlay"></div>', unsafe_allow_html=True)
+    with st.sidebar:
+        # Header row
+        close_col, title_col = st.columns([1, 4])
+        with close_col:
+            if st.button("✕", key="close-sidebar", help="Close history"):
+                st.session_state.show_history = False
+                st.query_params["hist"] = "0"
+                st.rerun()
+        with title_col:
+            st.markdown(
+                '<p style="color:var(--text);font-weight:700;font-size:0.95rem;'
+                'margin:0.45rem 0 0 0;">Past Research Reports</p>',
+                unsafe_allow_html=True,
+            )
 
-    drawer_html = """
-    <div class="history-drawer">
-        <div class="drawer-header">
-            <div class="drawer-title">📋 Past Research Reports</div>
-        </div>
-    """
-    if st.session_state.history:
-        for i, item in enumerate(reversed(st.session_state.history)):
-            orig_idx = len(st.session_state.history) - i - 1
-            title = item["topic"]
-            try:
-                date_str = item["created"].strftime("%m/%d/%Y")
-            except Exception:
-                date_str = str(item.get("created", ""))
-            report_preview = as_text(item["state"].get("report", ""))[:120]
-            report_preview = report_preview.replace("<", "&lt;").replace(">", "&gt;")
-            drawer_html += f"""
-            <div class="history-item">
-                <div class="history-item-header">
-                    <div class="history-item-title">{title[:50]}{"…" if len(title) > 50 else ""}</div>
-                    <div class="history-item-date">{date_str}</div>
-                </div>
-                <div class="history-item-preview">{report_preview}</div>
-            </div>
-            """
-    else:
-        drawer_html += '<p style="color:var(--text-muted);font-size:0.82rem;margin-top:0.5rem;">No research history yet.</p>'
+        st.divider()
 
-    drawer_html += "</div>"
-    st.markdown(drawer_html, unsafe_allow_html=True)
+        if not st.session_state.history:
+            st.markdown(
+                '<p style="color:var(--text-muted);font-size:0.82rem;margin-top:0.5rem;">'
+                'No research history yet.</p>',
+                unsafe_allow_html=True,
+            )
+        else:
+            for i, item in enumerate(reversed(st.session_state.history)):
+                orig_idx = len(st.session_state.history) - i - 1
+                title    = item["topic"]
+                try:
+                    date_str = item["created"].strftime("%m/%d/%Y")
+                except Exception:
+                    date_str = str(item.get("created", ""))
 
-    dcol1, dcol2 = st.columns([1, 5])
-    with dcol1:
-        if st.button("✕ Close", key="close-drawer"):
-            st.session_state.show_history = False
-            st.rerun()
+                # Preview text from report
+                preview = as_text(item["state"].get("report", ""))[:130]
+                preview = preview.replace("<", "&lt;").replace(">", "&gt;")
 
-    for i, item in enumerate(reversed(st.session_state.history)):
-        orig_idx = len(st.session_state.history) - i - 1
-        label = item["topic"][:35] + ("…" if len(item["topic"]) > 35 else "")
-        if st.button(f"📄 Load: {label}", key=f"load-hist-{orig_idx}"):
-            st.session_state.selected_run = orig_idx
-            st.session_state.show_history = False
-            st.session_state.toast_msg = f"Loaded research: {item['topic'][:40]}"
-            st.rerun()
+                # Card HTML (visual only)
+                st.markdown(
+                    f"""
+                    <div class="hist-card">
+                        <div class="hist-card-header">
+                            <div class="hist-card-title">{title[:50]}{"…" if len(title) > 50 else ""}</div>
+                            <div class="hist-card-date">{date_str}</div>
+                        </div>
+                        <div class="hist-card-preview">{preview}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                # Functional load button below card
+                if st.button(
+                    "↩ Load this report",
+                    key=f"load-hist-{orig_idx}",
+                    use_container_width=True,
+                ):
+                    st.session_state.selected_run = orig_idx
+                    st.session_state.show_history = False
+                    st.query_params["hist"] = "0"
+                    st.session_state.toast_msg = f"Loaded: {title[:40]}"
+                    st.rerun()
+
+                st.markdown('<div style="height:0.25rem"></div>', unsafe_allow_html=True)
+
 
 
 # ─── Page wrap ────────────────────────────────────────────────────────────────
