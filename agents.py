@@ -1,14 +1,25 @@
+"""
+Agent definitions for the Agentic Research Studio pipeline.
+
+LLM Provider priority (set LLM_PROVIDER in .env):
+  gemini  →  Google Gemini API  (free forever, 1M tokens/day) ← default
+  groq    →  Groq Cloud API     (free tier, rate-limited)
+  ollama  →  Local Ollama       (free, no limits, needs local install)
+"""
+
 import os
 
+from langchain.agents import create_agent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain.agents import create_agent
 from dotenv import load_dotenv
 
 from tools import web_search, scrape_url
 
 load_dotenv()
 
+
+# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _safe_print(msg: str) -> None:
     """Print safely on Windows (avoids cp1252 UnicodeEncodeError)."""
@@ -18,94 +29,118 @@ def _safe_print(msg: str) -> None:
         print(msg.encode("ascii", errors="replace").decode("ascii"))
 
 
-# ── Provider detection ────────────────────────────────────────────────────────
-# Priority: LLM_PROVIDER env var → auto-detect Ollama → fall back to Groq
+# ─── Provider builders ────────────────────────────────────────────────────────
 
-def _build_llm_ollama():
-    """Build a local Ollama LLM. Completely free, no API key, no limits."""
+def _build_gemini():
+    """
+    Google Gemini API — recommended for deployment.
+    Free tier: 15 req/min, 1 million tokens/day, no credit card.
+    Get your free key at: https://aistudio.google.com/app/apikey
+    """
     try:
-        from langchain_ollama import ChatOllama
+        from langchain_google_genai import ChatGoogleGenerativeAI
     except ImportError:
         raise RuntimeError(
-            "langchain-ollama is not installed.\n"
-            "Run: pip install langchain-ollama"
+            "langchain-google-genai not installed.\n"
+            "Run: pip install langchain-google-genai"
         )
 
-    model = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
-    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-
-    # Verify Ollama is running before returning
-    import urllib.request
-    try:
-        urllib.request.urlopen(base_url, timeout=3)
-    except Exception:
+    api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if not api_key:
         raise RuntimeError(
-            f"Ollama is not running at {base_url}.\n\n"
-            "To fix:\n"
-            "  1. Download Ollama from https://ollama.com/download\n"
-            "  2. Install and launch it\n"
-            f"  3. Pull your model:  ollama pull {model}\n"
-            "  4. Re-run the pipeline"
+            "Missing GOOGLE_API_KEY in .env file.\n\n"
+            "Steps to get your FREE key:\n"
+            "  1. Go to https://aistudio.google.com/app/apikey\n"
+            "  2. Sign in with Google (free)\n"
+            "  3. Click 'Create API Key'\n"
+            "  4. Add GOOGLE_API_KEY=<your-key> to your .env file"
         )
 
-    _safe_print(f"[LLM] Ollama model: {model} @ {base_url}")
-    return ChatOllama(model=model, base_url=base_url, temperature=0)
+    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    _safe_print(f"[LLM] Google Gemini: {model}")
+    return ChatGoogleGenerativeAI(
+        model=model,
+        google_api_key=api_key,
+        temperature=0,
+        convert_system_message_to_human=True,  # Gemini requirement
+    )
 
 
-def _build_llm_groq():
-    """Build a Groq-hosted LLM (free tier, rate-limited)."""
+def _build_groq():
+    """
+    Groq Cloud — very fast inference, free tier (rate-limited).
+    Get key at: https://console.groq.com/keys
+    """
     try:
         from langchain_groq import ChatGroq
     except ImportError:
         raise RuntimeError(
-            "langchain-groq is not installed.\n"
+            "langchain-groq not installed.\n"
             "Run: pip install langchain-groq"
         )
 
-    groq_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_api_key")
-    if not groq_key:
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_api_key")
+    if not api_key:
         raise RuntimeError(
-            "GROQ_API_KEY not found in .env file.\n"
+            "Missing GROQ_API_KEY in .env file.\n"
             "Get a free key at https://console.groq.com/keys"
         )
 
     model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-    _safe_print(f"[LLM] Groq model: {model}")
-    return ChatGroq(model=model, api_key=groq_key, temperature=0)
+    _safe_print(f"[LLM] Groq: {model}")
+    return ChatGroq(model=model, api_key=api_key, temperature=0)
+
+
+def _build_ollama():
+    """
+    Local Ollama — 100% offline, unlimited, but not suitable for deployment.
+    Install: https://ollama.com/download
+    """
+    try:
+        from langchain_ollama import ChatOllama
+    except ImportError:
+        raise RuntimeError(
+            "langchain-ollama not installed.\n"
+            "Run: pip install langchain-ollama"
+        )
+
+    import urllib.request
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    model = os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+    try:
+        urllib.request.urlopen(base_url, timeout=3)
+    except Exception:
+        raise RuntimeError(
+            f"Ollama is not running at {base_url}.\n"
+            f"Start Ollama, then run:  ollama pull {model}"
+        )
+
+    _safe_print(f"[LLM] Ollama: {model}")
+    return ChatOllama(model=model, base_url=base_url, temperature=0)
+
+
+# ─── LLM factory ──────────────────────────────────────────────────────────────
+
+_PROVIDERS = {
+    "gemini": _build_gemini,
+    "groq":   _build_groq,
+    "ollama": _build_ollama,
+}
 
 
 def _build_llm():
-    """
-    Select and build the LLM based on LLM_PROVIDER env var.
-
-    Set in your .env file:
-        LLM_PROVIDER=ollama    ← local, free, no limits  (default)
-        LLM_PROVIDER=groq      ← hosted, free tier, rate-limited
-
-    Ollama model (set in .env):
-        OLLAMA_MODEL=qwen2.5:0.5b   ← ultra-fast on low RAM (default)
-        OLLAMA_MODEL=llama3.2:1b    ← good quality, needs ~1.3GB RAM
-        OLLAMA_MODEL=llama3.2:3b    ← better quality, needs ~2GB RAM
-        OLLAMA_MODEL=mistral:7b     ← best quality, needs ~5GB RAM
-
-    Groq model (set in .env):
-        GROQ_MODEL=llama-3.1-8b-instant
-    """
-    provider = os.getenv("LLM_PROVIDER", "ollama").lower().strip()
-
-    if provider == "groq":
-        return _build_llm_groq()
-    elif provider == "ollama":
-        return _build_llm_ollama()
-    else:
+    provider = os.getenv("LLM_PROVIDER", "gemini").lower().strip()
+    builder = _PROVIDERS.get(provider)
+    if builder is None:
         raise RuntimeError(
-            f"Unknown LLM_PROVIDER='{provider}'. "
-            "Valid options: 'ollama' or 'groq'"
+            f"Unknown LLM_PROVIDER='{provider}'.\n"
+            f"Valid options: {list(_PROVIDERS.keys())}"
         )
+    return builder()
 
 
-# ── Lazy LLM singleton ────────────────────────────────────────────────────────
-# Built on first use — avoids crashing the UI at import time.
+# ─── Lazy LLM singleton ───────────────────────────────────────────────────────
+# Built on first use — the Streamlit UI loads even if the API key is missing.
 
 _llm_instance = None
 
@@ -117,7 +152,7 @@ def get_llm():
     return _llm_instance
 
 
-# ── Agents ────────────────────────────────────────────────────────────────────
+# ─── Agent builders ───────────────────────────────────────────────────────────
 
 def build_search_agent():
     return create_agent(model=get_llm(), tools=[web_search])
@@ -127,10 +162,10 @@ def build_reader_agent():
     return create_agent(model=get_llm(), tools=[scrape_url])
 
 
-# ── Writer chain ──────────────────────────────────────────────────────────────
+# ─── Writer chain ─────────────────────────────────────────────────────────────
 
 def _make_writer_chain():
-    writer_prompt = ChatPromptTemplate.from_messages([
+    prompt = ChatPromptTemplate.from_messages([
         ("system", "You are an expert research writer. Write clear, structured and insightful reports."),
         ("human", """Write a detailed research report on the topic below.
 
@@ -139,7 +174,7 @@ Topic: {topic}
 Research Gathered:
 {research}
 
-Structure the report as:
+Structure the report with:
 - Introduction
 - Key Findings (minimum 3 well-explained points)
 - Conclusion
@@ -147,13 +182,13 @@ Structure the report as:
 
 Be detailed, factual and professional."""),
     ])
-    return writer_prompt | get_llm() | StrOutputParser()
+    return prompt | get_llm() | StrOutputParser()
 
 
-# ── Critic chain ──────────────────────────────────────────────────────────────
+# ─── Critic chain ─────────────────────────────────────────────────────────────
 
 def _make_critic_chain():
-    critic_prompt = ChatPromptTemplate.from_messages([
+    prompt = ChatPromptTemplate.from_messages([
         ("system", "You are a sharp and constructive research critic. Be honest and specific."),
         ("human", """Review the research report below and evaluate it strictly.
 
@@ -175,13 +210,13 @@ Areas to Improve:
 One line verdict:
 ..."""),
     ])
-    return critic_prompt | get_llm() | StrOutputParser()
+    return prompt | get_llm() | StrOutputParser()
 
 
-# ── Lazy chain wrappers ───────────────────────────────────────────────────────
+# ─── Lazy chain wrappers ──────────────────────────────────────────────────────
 
 class _LazyChain:
-    """Builds the chain on first invoke() — avoids LLM init at import time."""
+    """Builds the LangChain chain on first invoke() — defers LLM initialization."""
 
     def __init__(self, factory):
         self._factory = factory
@@ -197,4 +232,4 @@ class _LazyChain:
 
 
 writer_chain = _LazyChain(_make_writer_chain)
-critic_chain = _LazyChain(_make_critic_chain)
+critic_chain  = _LazyChain(_make_critic_chain)
