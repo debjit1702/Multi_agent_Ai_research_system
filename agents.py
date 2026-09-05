@@ -67,13 +67,12 @@ def _build_gemini():
             "  4. Add GOOGLE_API_KEY=<your-key> to your .env file"
         )
 
-    model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     _safe_print(f"[LLM] Google Gemini: {model}")
     return ChatGoogleGenerativeAI(
         model=model,
         google_api_key=api_key,
         temperature=0,
-        convert_system_message_to_human=True,  # Gemini requirement
     )
 
 
