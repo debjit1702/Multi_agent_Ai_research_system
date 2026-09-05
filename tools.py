@@ -10,15 +10,33 @@ load_dotenv()
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 tavily = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
 
+def _sanitize_query(query: str) -> str:
+    """
+    Remove site: operators and other Tavily-incompatible tokens.
+    If nothing useful remains, return the original query trimmed.
+    """
+    import re
+    # Strip all site:xxx tokens
+    cleaned = re.sub(r'site:\S+', '', query, flags=re.IGNORECASE).strip()
+    # Strip stray boolean operators left behind
+    cleaned = re.sub(r'\b(AND|OR|NOT)\b', '', cleaned, flags=re.IGNORECASE).strip()
+    cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip()
+    # Fall back to original if nothing left
+    return cleaned if cleaned else query.strip()
+
+
 @tool
-def web_search(query : str) -> str:
-    """Search the web for recent and reliable information on a topic . Returns Titles , URLs and snippets."""
+def web_search(query: str) -> str:
+    """Search the web for recent and reliable information on a topic. Returns Titles, URLs and snippets."""
     if not query or not query.strip():
         raise ValueError("Search query cannot be empty.")
     if tavily is None:
         raise RuntimeError("Missing TAVILY_API_KEY. Add it to your .env file before running the pipeline.")
+
+    safe_query = _sanitize_query(query)
+
     try:
-        results = tavily.search(query=query, max_results=5)
+        results = tavily.search(query=safe_query, max_results=5)
     except Exception as exc:
         raise RuntimeError(f"Tavily search failed: {exc}") from exc
 
