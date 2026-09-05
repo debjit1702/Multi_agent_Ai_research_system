@@ -9,6 +9,17 @@ LLM Provider priority (set LLM_PROVIDER in .env):
 
 import os
 
+# ── Streamlit Cloud secrets compatibility ─────────────────────────────────────
+# On Streamlit Cloud, secrets are injected via st.secrets (not .env).
+# This block syncs them into os.environ so the rest of the code works unchanged.
+try:
+    import streamlit as st
+    for _k, _v in st.secrets.items():
+        if isinstance(_v, str):
+            os.environ.setdefault(_k, _v)
+except Exception:
+    pass  # Not running in Streamlit, or no secrets defined — fall back to .env
+
 from langchain.agents import create_agent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
