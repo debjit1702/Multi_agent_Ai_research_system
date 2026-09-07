@@ -36,7 +36,7 @@ def web_search(query: str) -> str:
     safe_query = _sanitize_query(query)
 
     try:
-        results = tavily.search(query=safe_query, max_results=5)
+        results = tavily.search(query=safe_query, max_results=3)
     except Exception as exc:
         raise RuntimeError(f"Tavily search failed: {exc}") from exc
 
@@ -55,11 +55,11 @@ def scrape_url(url: str) -> str:
     if not url or not url.strip():
         raise ValueError("URL cannot be empty.")
     try:
-        resp = requests.get(url, timeout=8, headers={"User-Agent": "Mozilla/5.0"})
+        resp = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         for tag in soup(["script", "style", "nav", "footer"]):
             tag.decompose()
-        return soup.get_text(separator=" ", strip=True)[:3000]
+        return soup.get_text(separator=" ", strip=True)[:1500]
     except Exception as e:
         return f"Could not scrape URL: {str(e)}"

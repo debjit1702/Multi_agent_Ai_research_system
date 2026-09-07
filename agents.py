@@ -4,7 +4,6 @@ Agent definitions for the Agentic Research Studio pipeline.
 LLM Provider priority (set LLM_PROVIDER in .env):
   openrouter → OpenRouter API    (free models available)       ← default
   gemini     → Google Gemini API (free tier, 1M tokens/day)
-  groq       → Groq Cloud API    (free tier, rate-limited)
   ollama     → Local Ollama      (free, no limits, needs local install)
 """
 
@@ -28,7 +27,7 @@ from dotenv import load_dotenv
 
 from tools import web_search, scrape_url
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -98,43 +97,19 @@ def _build_openrouter():
             "Get a free key at https://openrouter.ai/keys"
         )
 
-    model = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat:free")
+    model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
     _safe_print(f"[LLM] OpenRouter: {model}")
     return ChatOpenAI(
         model=model,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
         temperature=0,
+        max_tokens=512,  # limit output length for faster responses
         default_headers={
             "HTTP-Referer": "https://github.com/multi-agent-research",
             "X-Title": "Multi Agent Research System",
         },
     )
-
-
-def _build_groq():
-    """
-    Groq Cloud — very fast inference, free tier (rate-limited).
-    Get key at: https://console.groq.com/keys
-    """
-    try:
-        from langchain_groq import ChatGroq
-    except ImportError:
-        raise RuntimeError(
-            "langchain-groq not installed.\n"
-            "Run: pip install langchain-groq"
-        )
-
-    api_key = os.getenv("GROQ_API_KEY") or os.getenv("groq_api_key")
-    if not api_key:
-        raise RuntimeError(
-            "Missing GROQ_API_KEY in .env file.\n"
-            "Get a free key at https://console.groq.com/keys"
-        )
-
-    model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-    _safe_print(f"[LLM] Groq: {model}")
-    return ChatGroq(model=model, api_key=api_key, temperature=0)
 
 
 def _build_ollama():
@@ -170,7 +145,6 @@ def _build_ollama():
 _PROVIDERS = {
     "openrouter": _build_openrouter,
     "gemini":     _build_gemini,
-    "groq":       _build_groq,
     "ollama":     _build_ollama,
 }
 
