@@ -2,9 +2,10 @@
 Agent definitions for the Agentic Research Studio pipeline.
 
 LLM Provider priority (set LLM_PROVIDER in .env):
-  gemini  →  Google Gemini API  (free forever, 1M tokens/day) ← default
-  groq    →  Groq Cloud API     (free tier, rate-limited)
-  ollama  →  Local Ollama       (free, no limits, needs local install)
+  openrouter → OpenRouter API    (free models available)       ← default
+  gemini     → Google Gemini API (free tier, 1M tokens/day)
+  groq       → Groq Cloud API    (free tier, rate-limited)
+  ollama     → Local Ollama      (free, no limits, needs local install)
 """
 
 import os
@@ -76,6 +77,41 @@ def _build_gemini():
     )
 
 
+def _build_openrouter():
+    """
+    OpenRouter — unified gateway to 100+ LLMs, many with free tiers.
+    Get key at: https://openrouter.ai/keys
+    Free models: deepseek/deepseek-chat:free, meta-llama/llama-3.1-8b-instruct:free
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError:
+        raise RuntimeError(
+            "langchain-openai not installed.\n"
+            "Run: pip install langchain-openai"
+        )
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Missing OPENROUTER_API_KEY in .env file.\n"
+            "Get a free key at https://openrouter.ai/keys"
+        )
+
+    model = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-chat:free")
+    _safe_print(f"[LLM] OpenRouter: {model}")
+    return ChatOpenAI(
+        model=model,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        temperature=0,
+        default_headers={
+            "HTTP-Referer": "https://github.com/multi-agent-research",
+            "X-Title": "Multi Agent Research System",
+        },
+    )
+
+
 def _build_groq():
     """
     Groq Cloud — very fast inference, free tier (rate-limited).
@@ -132,14 +168,15 @@ def _build_ollama():
 # ─── LLM factory ──────────────────────────────────────────────────────────────
 
 _PROVIDERS = {
-    "gemini": _build_gemini,
-    "groq":   _build_groq,
-    "ollama": _build_ollama,
+    "openrouter": _build_openrouter,
+    "gemini":     _build_gemini,
+    "groq":       _build_groq,
+    "ollama":     _build_ollama,
 }
 
 
 def _build_llm():
-    provider = os.getenv("LLM_PROVIDER", "gemini").lower().strip()
+    provider = os.getenv("LLM_PROVIDER", "openrouter").lower().strip()
     builder = _PROVIDERS.get(provider)
     if builder is None:
         raise RuntimeError(
