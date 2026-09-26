@@ -1,443 +1,327 @@
-# Multi-Agent AI Research System
+# 🔬 Multi-Agent AI Research System
 
-A powerful, modular research automation platform that leverages multiple specialized AI agents to conduct end-to-end research workflows. The system orchestrates a coordinated pipeline of agents to search, extract, synthesize, and validate information, delivering high-quality research reports with minimal human intervention.
+A modular research automation platform that orchestrates multiple specialized AI agents to conduct end-to-end research workflows — from web search to polished report — with minimal human intervention.
+
+---
 
 ## ✨ Overview
 
-The Multi-Agent AI Research System automates the entire research lifecycle by delegating tasks to specialized agents that work in sequence:
+The system automates the entire research lifecycle by delegating tasks to four specialized agents that work in sequence:
 
-1. **Search Agent** — Discovers relevant sources using web search
-2. **Reader Agent** — Scrapes and extracts content from top-ranked sources
-3. **Writer Agent** — Synthesizes findings into a coherent report
-4. **Critic Agent** — Reviews and validates the report for accuracy and quality
+| Step | Agent | Role |
+|------|-------|------|
+| 1 | **Search Agent** | Discovers relevant sources via Tavily web search |
+| 2 | **Reader Agent** | Scrapes and extracts content from the top-ranked source |
+| 3 | **Writer Chain** | Synthesizes findings into a structured research report |
+| 4 | **Critic Chain** | Reviews the report for accuracy, coherence, and quality |
 
-The Streamlit UI provides an intuitive interface for running research queries and viewing results, with full transparency into each pipeline stage.
+A **Streamlit UI** provides an intuitive interface for running research queries, viewing real-time progress, and downloading results.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    %% ── External actor ──
+    Researcher((Researcher))
+
+    %% ── User Interface layer ──
+    subgraph UI["User Interface"]
+        StreamlitUI["Streamlit Interface<br/><i>app.py</i>"]
+        RunHistory["Run History<br/><i>app.py</i>"]
+    end
+
+    %% ── Research Workflow layer ──
+    subgraph Workflow["Research Workflow"]
+        Pipeline["Pipeline Orchestrator<br/><i>pipeline.py</i>"]
+        LLMFactory["LLM Factory<br/><i>agents.py</i>"]
+    end
+
+    %% ── Research Capabilities layer ──
+    subgraph Agents["Research Capabilities"]
+        SearchAgent["Search Agent<br/><i>agents.py</i>"]
+        ReaderAgent["Reader Agent<br/><i>agents.py</i>"]
+        WriterChain["Writer Chain<br/><i>agents.py</i>"]
+        CriticChain["Critic Chain<br/><i>agents.py</i>"]
+        WebSearchTool["Web Search Tool<br/><i>tools.py</i>"]
+        PageScraper["Page Scraper<br/><i>tools.py</i>"]
+    end
+
+    %% ── External Integrations ──
+    subgraph External["External Integrations"]
+        LLMProvider["LLM Provider"]
+        SourceWebsites["Source Websites"]
+        TavilySearch["Tavily Search"]
+    end
+
+    %% ── Connections ──
+    Researcher -->|submits topic| StreamlitUI
+    StreamlitUI -->|runs research| Pipeline
+    Pipeline -->|returns run state| StreamlitUI
+    StreamlitUI -->|records runs| RunHistory
+    RunHistory -->|supplies selection| StreamlitUI
+
+    Pipeline -->|invokes| SearchAgent
+    Pipeline -->|passes research| ReaderAgent
+    Pipeline -->|passes results| WriterChain
+    Pipeline -->|passes report| CriticChain
+
+    SearchAgent -->|calls| WebSearchTool
+    ReaderAgent -->|calls| PageScraper
+
+    WriterChain -->|uses model| LLMProvider
+    CriticChain -->|uses model| LLMProvider
+    SearchAgent -->|uses model| LLMProvider
+    ReaderAgent -->|uses model| LLMProvider
+
+    LLMFactory -.->|configures provider| LLMProvider
+
+    WebSearchTool -->|searches| TavilySearch
+    PageScraper -->|fetches pages| SourceWebsites
+
+    %% ── Styles ──
+    classDef agentNode fill:#c8e6c9,stroke:#388e3c,color:#1b5e20
+    classDef toolNode fill:#c8e6c9,stroke:#388e3c,color:#1b5e20
+    classDef workflowNode fill:#fff9c4,stroke:#f9a825,color:#5d4037
+    classDef uiNode fill:#bbdefb,stroke:#1976d2,color:#0d47a1
+    classDef externalNode fill:#ffcdd2,stroke:#c62828,color:#b71c1c
+    classDef actor fill:#e8eaf6,stroke:#3949ab,color:#1a237e
+
+    class SearchAgent,ReaderAgent,WriterChain,CriticChain,WebSearchTool,PageScraper agentNode
+    class Pipeline,LLMFactory workflowNode
+    class StreamlitUI,RunHistory uiNode
+    class LLMProvider,SourceWebsites,TavilySearch externalNode
+    class Researcher actor
+```
+
+### Data Flow
+
+```
+Researcher submits topic
+    │
+    ▼
+┌─────────────────────────────────────┐
+│  Streamlit UI  (app.py)             │
+│  Form → Progress → Results → Export │
+└──────────────┬──────────────────────┘
+               │ runs research
+               ▼
+┌─────────────────────────────────────┐
+│  Pipeline Orchestrator (pipeline.py)│
+└──────────────┬──────────────────────┘
+               │
+   ┌───────────┼───────────┬──────────────┐
+   ▼           ▼           ▼              ▼
+Search      Reader      Writer         Critic
+Agent       Agent       Chain          Chain
+   │           │           │              │
+   ▼           ▼           │              │
+web_search  scrape_url     │              │
+(Tavily)    (BS4)          │              │
+                           ▼              ▼
+                      LLM Provider   LLM Provider
+                    (OpenRouter / Gemini / Ollama)
+```
+
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Python 3.8+
-- API key for one of: **Groq** (recommended), **xAI/Grok**, or another LLM provider
-- Virtual environment (recommended)
+- **Python 3.8+**
+- **API key** for at least one LLM provider (OpenRouter, Google Gemini, or Ollama)
+- **Tavily API key** for web search
 
 ### Installation
 
-1. **Clone and navigate to the project directory:**
-   ```bash
-   cd "multi agent system"
-   ```
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-username/Multi_agent_Ai_research_system.git
+cd Multi_agent_Ai_research_system
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   # or: source .venv/bin/activate  # macOS/Linux
-   ```
+# 2. Create and activate a virtual environment
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # macOS / Linux
 
-3. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+# 3. Install dependencies
+pip install -r requirements.txt
+```
 
-4. **Set up environment variables:**
-   Create a `.env` file in the project root:
-   ```
-   GROQ_API_KEY=your_groq_api_key_here
-   # OR
-   XAI_API_KEY=your_xai_api_key_here
-   ```
+### Environment Setup
+
+Create a `.env` file in the project root:
+
+```env
+# ── LLM Provider (pick one) ──────────────────────────
+LLM_PROVIDER=openrouter          # openrouter | gemini | ollama
+
+# OpenRouter (default — free models available)
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
+
+# Google Gemini (free tier — 1M tokens/day)
+GOOGLE_API_KEY=your_key_here
+GEMINI_MODEL=gemini-2.5-flash
+
+# Ollama (local, no key needed — just install & run Ollama)
+OLLAMA_MODEL=qwen2.5:0.5b
+
+# ── Web Search ────────────────────────────────────────
+TAVILY_API_KEY=your_tavily_key_here
+```
 
 ### Run the Application
 
-#### Standard Execution
-
-Start the Streamlit web interface:
 ```bash
+# Start the Streamlit web interface
 python -m streamlit run app.py
 ```
 
-The app will automatically open in your default browser at `http://localhost:8501`.
+The app opens automatically at **http://localhost:8501**.
 
-#### Using the Python Module (Windows)
+<details>
+<summary><b>Alternative run commands</b></summary>
 
-If the above doesn't work, try the module-based approach:
 ```bash
+# Windows — explicit venv path
 .venv\Scripts\python.exe -m streamlit run app.py
-```
 
-#### Custom Port
-
-To run on a different port:
-```bash
+# Custom port
 python -m streamlit run app.py --server.port 8000
-```
 
-#### Headless Mode (No Browser Auto-Open)
-
-```bash
+# Headless (no browser auto-open)
 python -m streamlit run app.py --server.headless true
+
+# Run pipeline directly in terminal (no UI)
+python pipeline.py
 ```
+</details>
 
-#### Running via Direct Python
+---
 
-```bash
-python -m streamlit run app.py
-```
+## 🧩 Core Components
 
-### Using the Application
+### LLM Factory (`agents.py`)
 
-1. **Enter a research topic** — Type your research query in the input field (e.g., "Latest developments in AI safety")
-2. **Click "Run pipeline"** — The system will execute all 4 stages sequentially
-3. **View progress** — A status box shows real-time progress through each agent
-4. **Review results** — Once complete, view:
-   - **Report** — The final synthesized research report
-   - **Critic Feedback** — Quality review and validation notes
-   - **Search Results** — Raw search engine output
-   - **Scraped Content** — Full text from the top source
-5. **Download report** — Click the download button to save as Markdown
-6. **Access history** — Previous research runs appear in the left sidebar for quick access
+Automatic provider selection with a configurable `LLM_PROVIDER` environment variable:
 
-### Troubleshooting Startup Issues
+| Provider | Model | Notes |
+|----------|-------|-------|
+| **OpenRouter** (default) | `meta-llama/llama-3.1-8b-instruct:free` | Unified gateway, free models available |
+| **Google Gemini** | `gemini-2.5-flash` | Free tier: 15 req/min, 1M tokens/day |
+| **Ollama** | `qwen2.5:0.5b` | 100% local, no API key needed |
 
-| Issue | Solution |
-|-------|----------|
-| `ModuleNotFoundError: No module named 'streamlit'` | Run `pip install streamlit` |
-| Port 8501 already in use | Use `--server.port 8000` or kill the existing process |
-| `.env` file not found | Create `.env` with `GROQ_API_KEY=your_key` |
-| "API key not configured" | Verify your API key in `.env` and reload the app |
-| Slow startup | First run may take longer; subsequent runs are faster |
+All models run at **temperature 0** for deterministic, reproducible output. The LLM is instantiated lazily — the UI loads even if the API key is missing.
 
-## 🏗️ Detailed Architecture
+### Agent Layer (`agents.py`)
 
-c tools and prompts to complete its task effectively.
+| Agent | Type | Tool | Input → Output |
+|-------|------|------|-----------------|
+| **Search Agent** | ReAct (LangGraph) | `web_search` | Topic → 3 ranked results (title, URL, snippet) |
+| **Reader Agent** | ReAct (LangGraph) | `scrape_url` | Search results → Clean text from best URL (1500 chars) |
+| **Writer Chain** | LCEL Pipeline | — | Research + topic → Structured report (Intro, Findings, Conclusion, Sources) |
+| **Critic Chain** | LCEL Pipeline | — | Report → Score/10 + Strengths + Improvements + Verdict |
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Streamlit UI (app.py)                        │
-│  • Research form, progress tracking, result tabs, history       │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │
-                      ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               Pipeline Orchestrator (pipeline.py)                │
-│  • State management, sequential workflow, message passing        │
-└─────────────────────┬───────────────────────────────────────────┘
-                      │
-        ┌─────────────┼─────────────┬───────────────┐
-        ▼             ▼             ▼               ▼
-   ┌────────┐   ┌────────┐   ┌──────────┐   ┌───────────┐
-   │ Search │   │ Reader │   │ Writer   │   │ Critic    │
-   │ Agent  │   │ Agent  │   │ Chain    │   │ Chain     │
-   └───┬────┘   └───┬────┘   └──────────┘   └───────────┘
-       │            │
-   [Tools Layer]    │
-   ┌───┴────────────┴──────────────────────────────────┐
-   │  • web_search (Tavily API)                        │
-   │  • scrape_url (BeautifulSoup)                     │
-   └─────────────────────────────────────────────────────┘
-       │
-   [LLM Layer]
-   ┌─────────────────────────────────────────────────────┐
-   │  • Groq (llama-3.3-70b-versatile) [Preferred]       │
-   │  • xAI Grok (grok-4.5) [Fallback]                   │
-   └─────────────────────────────────────────────────────┘
-```
+### Tools Layer (`tools.py`)
 
-### Core Components
+| Tool | Provider | Description |
+|------|----------|-------------|
+| `web_search(query)` | Tavily API | Searches the web, returns 3 results with titles, URLs, and 300-char snippets |
+| `scrape_url(url)` | BeautifulSoup | Fetches a page, strips `<script>`, `<style>`, `<nav>`, `<footer>`, returns 1500 chars of clean text |
 
-#### 1. **LLM Layer** (`agents.py` - `_build_llm()`)
+### Pipeline Orchestrator (`pipeline.py`)
 
-Automatic LLM selection with fallback:
-- **Primary**: Groq LLaMA 3.3 (70B) — Fast, free tier, optimized for reasoning
-- **Fallback**: xAI Grok 4.5 — Advanced multi-modal reasoning
-- **Configuration**: Temperature = 0 (deterministic output)
-- **API Key Detection**: Checks environment for `GROQ_API_KEY` or `XAI_API_KEY`
-
-```python
-# LLM is instantiated once and reused across all agents
-llm = _build_llm()  # Raises RuntimeError if no valid API key found
-```
-
-#### 2. **Agent Layer** (Agents in `agents.py`)
-
-Four specialized agents, each with distinct roles:
-
-##### **Search Agent** (`build_search_agent()`)
-- **Tool**: `web_search` (Tavily API)
-- **Purpose**: Discover relevant sources and initial information
-- **Input**: Research topic from user
-- **Output**: 5 ranked search results with titles, URLs, and snippets (300 chars each)
-- **LangChain Type**: ReAct agent (Reasoning + Acting)
-- **Prompt**: "Find recent, reliable and detailed information about: {topic}"
-
-##### **Reader Agent** (`build_reader_agent()`)
-- **Tool**: `scrape_url` (BeautifulSoup)
-- **Purpose**: Extract deep content from top-ranked source
-- **Input**: Search results + topic context
-- **Output**: Clean text content from best URL (3000 chars max)
-- **LangChain Type**: ReAct agent
-- **Prompt**: "Pick the most relevant URL and scrape it for deeper content"
-- **Processing**: Removes scripts, styles, nav, footer tags; normalizes whitespace
-
-##### **Writer Chain** (`writer_chain`)
-- **Type**: LCEL (LangChain Expression Language) pipeline
-- **Purpose**: Synthesize information into structured report
-- **Input**: Combined search results + scraped content + topic
-- **Output**: Formatted report with Introduction, Key Findings (min 3), Conclusion, Sources
-- **System Prompt**: "You are an expert research writer. Write clear, structured and insightful reports."
-- **Template**: ChatPromptTemplate with structured report format
-
-##### **Critic Chain** (`critic_chain`)
-- **Type**: LCEL pipeline
-- **Purpose**: Review and validate report quality
-- **Input**: Generated report
-- **Output**: Structured feedback (Score/10, Strengths, Areas to Improve, Verdict)
-- **System Prompt**: "You are a sharp and constructive research critic. Be honest and specific."
-- **Scoring**: 1-10 numeric score + detailed feedback
-
-#### 3. **Tools Layer** (`tools.py`)
-
-##### **web_search(query: str) → str**
-- **Provider**: Tavily (research API)
-- **Functionality**: Searches web for relevant, up-to-date information
-- **Returns**: JSON with 5 results containing: title, URL, content snippet
-- **Error Handling**: Validates non-empty query, catches API failures
-- **Output Format**: Formatted text with title, URL, snippet for each result
-
-##### **scrape_url(url: str) → str**
-- **Provider**: BeautifulSoup + requests
-- **Functionality**: Extracts clean text from HTML pages
-- **Processing Steps**:
-  1. HTTP GET request with Mozilla User-Agent
-  2. HTML parsing with BeautifulSoup
-  3. Remove noise: `<script>`, `<style>`, `<nav>`, `<footer>` tags
-  4. Extract normalized text (3000 char limit)
-- **Timeout**: 8 seconds per request
-- **Error Handling**: Returns error message if scraping fails
-
-#### 4. **Pipeline Orchestrator** (`pipeline.py` - `run_research_pipeline()`)
-
-Sequential workflow with state management:
-
-```python
-def run_research_pipeline(topic: str) -> dict:
-    state = {}
-    
-    # Step 1: Search
-    search_agent = build_search_agent()
-    search_result = search_agent.invoke({"messages": [prompt]})
-    state['search_results'] = extract_content(search_result)
-    
-    # Step 2: Read
-    reader_agent = build_reader_agent()
-    reader_result = reader_agent.invoke({"messages": [prompt]})
-    state['scraped_content'] = extract_content(reader_result)
-    
-    # Step 3: Write
-    state["report"] = writer_chain.invoke({
-        "topic": topic,
-        "research": search_results + scraped_content
-    })
-    
-    # Step 4: Critique
-    state["feedback"] = critic_chain.invoke({
-        "report": state['report']
-    })
-    
-    return state
-```
-
-**Key Features**:
-- **Sequential Execution**: Each step waits for the previous to complete
-- **State Management**: Dictionary tracks outputs from each stage
-- **Message Passing**: Uses LangChain's `HumanMessage` format
-- **Content Extraction**: `_last_message_content()` helper extracts AI responses
-- **Error Propagation**: Exceptions bubble up to UI for user feedback
-- **Logging**: Print statements for debugging (console output visible in terminal)
-
-#### 5. **UI Layer** (`app.py` - Streamlit)
-
-**Architecture**:
-- **Framework**: Streamlit (Python web framework)
-- **Styling**: Custom CSS with dark theme (CSS-in-Markdown)
-- **State Management**: Streamlit session state for history tracking
-- **Layout**: Sidebar (history) + main area (hero + form + results)
-
-**Key Sections**:
-1. **Hero Header**: Branding, system description, pipeline steps
-2. **Input Form**: Text field for research topic + submit button
-3. **Status Box**: Shows 4-step progress (though not live-streamed)
-4. **Results Tabs**:
-   - Report: Final markdown report
-   - Critic Feedback: Quality review
-   - Search Results: Raw API output
-   - Scraped Content: Full extracted text
-5. **History Sidebar**: Quick access to previous runs
-
-**Features**:
-- Download reports as Markdown
-- Search history with 38-char truncation
-- Clear history button
-- Responsive design (wide layout)
-- Real-time status updates
-
-### Data Flow Sequence
+Runs the four agents sequentially, passing state between each step:
 
 ```
-User Input (Topic)
+Search Agent → state['search_results']
     ↓
-[LLM Init] → Load API key, instantiate Groq/xAI
+Reader Agent → state['scraped_content']
     ↓
-[Search Agent] → web_search(topic) → 5 URLs + snippets
+Writer Chain → state['report']
     ↓
-state['search_results'] ← Formatted search output
+Critic Chain → state['feedback']
     ↓
-[Reader Agent] → scrape_url(best_url) → Full page text
-    ↓
-state['scraped_content'] ← Cleaned HTML content
-    ↓
-[Writer Chain] → Combine search + scraped + topic → Structured report
-    ↓
-state['report'] ← Markdown-formatted research report
-    ↓
-[Critic Chain] → Evaluate report → Score + feedback
-    ↓
-state['feedback'] ← Structured critique
-    ↓
-Return state dict → Display in Streamlit UI
+return state → Streamlit UI
 ```
 
-### Technology Stack
+### UI Layer (`app.py`)
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **LLM** | Groq (primary), xAI Grok (fallback) | Language model inference |
-| **Orchestration** | LangChain (agents, chains, tools) | Agent coordination & prompting |
-| **Web Search** | Tavily API | Information retrieval |
-| **Content Scraping** | BeautifulSoup, requests | HTML parsing |
-| **UI Framework** | Streamlit | Web interface |
-| **Environment** | python-dotenv | API key management |
-| **HTTP** | requests | Web requests |
-| **HTML Parser** | BeautifulSoup 4 | DOM manipulation |
-| **Dependencies** | See requirements.txt | Full stack |
+- **Dark-themed Streamlit** interface with custom CSS
+- **Research form** with topic input and pipeline trigger
+- **Real-time progress** indicator across all 4 stages
+- **Tabbed results**: Report · Critic Feedback · Search Results · Scraped Content
+- **Research history** sidebar with quick-access to previous runs
+- **Markdown export** — download final reports with one click
 
-### Error Handling & Resilience
-
-1. **Missing API Keys**: Raise `RuntimeError` with helpful message directing to `.env`
-2. **Empty Queries**: Validate non-empty strings at tool entry points
-3. **Network Failures**: Catch exceptions in `scrape_url`, return error message
-4. **Invalid Input**: `run_research_pipeline()` validates topic before starting
-5. **LLM Fallback**: Tries Groq first, falls back to xAI if key missing
-6. **UI Error Boundary**: Streamlit catches exceptions, displays error box with details
-
-### Performance Characteristics
-
-- **End-to-End Runtime**: 30-60 seconds (varies by model + network)
-- **Search Results**: Limited to 5 per API call (reduce rate limit impact)
-- **Scrape Limit**: 3000 characters (balance depth vs. token cost)
-- **Temperature**: 0 (deterministic, reproducible output)
-- **Concurrency**: Sequential (no parallel agent execution currently)
-- **Caching**: None (fresh data on every run)
+---
 
 ## 📁 Project Structure
 
 ```
 .
-├── app.py                 # Streamlit UI for the research pipeline
-├── pipeline.py            # Main orchestration logic (4-step workflow)
-├── agents.py              # AI agent definitions (Search, Reader, Writer, Critic)
-├── tools.py               # Tool implementations (web search, URL scraping)
-├── requirements.txt       # Python dependencies
-├── test_pipeline.py       # Test suite
-└── README.md              # This file
+├── app.py               # Streamlit UI — form, progress, results, history
+├── pipeline.py          # Pipeline orchestrator — 4-step sequential workflow
+├── agents.py            # Agent definitions & LLM factory (Search, Reader, Writer, Critic)
+├── tools.py             # Tool implementations (Tavily web search, BeautifulSoup scraper)
+├── requirements.txt     # Python dependencies
+├── test_pipeline.py     # Test suite
+├── .env                 # API keys (not committed)
+└── README.md            # This file
 ```
 
-### Key Files
-
-- **app.py** — Streamlit frontend with dark theme, research form, and result tabs
-  - Displays live pipeline progress
-  - Shows report, critic feedback, search results, and scraped content
-  - Maintains research history for quick access
-  - Supports markdown download of final reports
-
-- **pipeline.py** — Orchestrates the 4-agent workflow
-  - Sequential execution: Search → Read → Write → Critique
-  - State management and message passing between agents
-  - Error handling and result extraction
-
-- **agents.py** — LLM agent configurations using LangChain
-  - Search agent: web search and result ranking
-  - Reader agent: content extraction and summarization
-  - Writer chain: report generation
-  - Critic chain: quality review and validation
-  - Automatic LLM selection (Groq or xAI) based on API keys
-
-- **tools.py** — Utility functions
-  - Web search integration (Tavily API)
-  - URL content scraping (BeautifulSoup)
-  - HTML/text parsing and cleanup
-
-## ⚙️ Configuration
-
-### LLM Models
-
-The system automatically selects an LLM based on available API keys (in order of preference):
-
-1. **Groq** (llama-3.3-70b-versatile) — Fast, free tier available
-2. **xAI/Grok** (grok-4.5) — Advanced reasoning capabilities
-
-Set the corresponding API key in `.env` to use each provider.
-
-### Temperature & Parameters
-
-- **Temperature**: 0 (deterministic output for consistent reports)
-- **Model Selection**: Automatic based on available credentials
+---
 
 ## 🎯 Features
 
-- **End-to-End Pipeline** — Fully automated research workflow with 4 specialized agents
-- **Web-Based UI** — Modern Streamlit interface with dark theme and responsive design
-- **Result Transparency** — View search results, scraped content, and critic feedback
-- **Research History** — Track and revisit previous research runs
-- **Report Export** — Download reports as Markdown files
-- **Error Handling** — Graceful error recovery and user feedback
-- **Extensible Architecture** — Easy to add new agents or tools
+- **End-to-end automation** — From topic input to polished, reviewed report
+- **Multi-provider LLM support** — OpenRouter, Google Gemini, or local Ollama
+- **Real-time progress tracking** — Watch each agent complete its work
+- **Result transparency** — Inspect raw search results and scraped content
+- **Research history** — Revisit and compare previous runs
+- **One-click export** — Download reports as Markdown
+- **Graceful error handling** — Informative messages for missing keys, network failures, and bad input
+- **Lazy initialization** — UI loads instantly; LLM connects only when needed
 
-## 📊 Pipeline Workflow
+---
 
-```
-User Input (Research Topic)
-    ↓
-[1] Search Agent
-    • Queries web for relevant sources
-    • Returns ranked list of results
-    ↓
-[2] Reader Agent
-    • Scrapes top-ranked source
-    • Extracts and summarizes content
-    ↓
-[3] Writer Agent
-    • Synthesizes information into structured report
-    • Generates insights and recommendations
-    ↓
-[4] Critic Agent
-    • Reviews report for accuracy and coherence
-    • Provides feedback and validation
-    ↓
-Output (Report + Feedback)
-    • Displayed in Streamlit UI
-    • Available for download
-```
+## 📊 Performance
+
+| Metric | Value |
+|--------|-------|
+| End-to-end runtime | ~30–60 seconds |
+| Search results per query | 3 |
+| Scrape content limit | 1,500 characters |
+| LLM temperature | 0 (deterministic) |
+| Execution mode | Sequential (no parallelism) |
+| Caching | None (fresh data every run) |
+
+---
 
 ## 💡 Use Cases
 
 - **Academic Research** — Literature review and synthesis
-- **Technical Discovery** — Learning about new technologies and frameworks
+- **Technical Discovery** — Explore new technologies and frameworks
 - **Business Intelligence** — Market analysis and competitive research
-- **Product Research** — Feature discovery and trend analysis
-- **News & Trends** — Current events synthesis and summary
+- **News & Trends** — Current events synthesis and summarization
 - **Knowledge Work** — Rapid information gathering and organization
+
+---
+
+## 🐛 Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `ModuleNotFoundError: streamlit` | `pip install streamlit` |
+| `API key not found` | Add the correct key to `.env` and restart |
+| Port 8501 in use | Use `--server.port 8000` |
+| Empty search results | Check internet connection and Tavily API quota |
+| Ollama not reachable | Start Ollama and run `ollama pull qwen2.5:0.5b` |
+
+---
 
 ## 🔧 Development
 
@@ -447,45 +331,30 @@ Output (Report + Feedback)
 python -m pytest test_pipeline.py -v
 ```
 
-### Adding Custom Agents
+### Adding a New Agent
 
-1. Define a new agent function in `agents.py`
-2. Integrate into the pipeline step in `pipeline.py`
-3. Update the UI in `app.py` if needed
+1. Define the agent builder in `agents.py`
+2. Add the step in `pipeline.py` → `run_research_pipeline()`
+3. Wire the results into the Streamlit UI in `app.py`
 
-### Adding New Tools
+### Adding a New Tool
 
-1. Implement tool functions in `tools.py`
-2. Reference in agent prompts/configurations
-3. Test in isolation before integration
+1. Implement the tool function in `tools.py` with the `@tool` decorator
+2. Pass it to the agent's `create_agent(tools=[...])` call in `agents.py`
 
-## 🐛 Troubleshooting
-
-**"API key not found"** — Ensure `.env` file exists with `GROQ_API_KEY` or `XAI_API_KEY`
-
-**"langchain-groq not installed"** — Run `pip install langchain-groq`
-
-**Streamlit not starting** — Verify Streamlit is installed: `pip install streamlit`
-
-**Empty search results** — Check internet connection and API rate limits
-
-## 📈 Performance Considerations
-
-- Total pipeline runtime: ~30-60 seconds (varies by model and network)
-- Search results limited to reduce API calls
-- Content scraping is single-source (top result)
-- Temperature set to 0 for consistent output
+---
 
 ## 🚧 Future Enhancements
 
-- **Multi-source Synthesis** — Combine insights from multiple sources
-- **Fact Verification** — Cross-check claims across sources
-- **Domain Specialization** — Custom agents for specific research domains
-- **Memory & Context** — Persistent context for follow-up queries
-- **Advanced Export** — PDF, JSON, and structured data formats
-- **Batch Processing** — Research multiple topics in sequence
-- **Agent Customization** — User-configurable agent behavior and prompts
-- **Caching** — Store results for repeated queries
+- Multi-source synthesis — scrape and combine multiple URLs
+- Fact verification — cross-check claims across sources
+- Domain specialization — custom agents for specific research fields
+- Persistent memory — context for follow-up queries
+- Advanced export — PDF, JSON, structured data formats
+- Batch processing — research multiple topics in sequence
+- Caching — store results for repeated queries
+
+---
 
 ## 📝 License
 
@@ -493,4 +362,4 @@ python -m pytest test_pipeline.py -v
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to open issues or submit pull requests.
+Contributions are welcome! Feel free to open issues or submit pull requests.
