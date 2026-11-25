@@ -1,365 +1,104 @@
-# 🔬 Multi-Agent AI Research System
+# ResearchRelay
 
-A modular research automation platform that orchestrates multiple specialized AI agents to conduct end-to-end research workflows — from web search to polished report — with minimal human intervention.
+ResearchRelay is a Streamlit application for cited web research. Four LangChain agents plan searches, select evidence, write a report, and check its claims. LangGraph coordinates their state, routes follow-up work, and retains a draft when a later stage fails.
 
----
+## Run locally
 
-## ✨ Overview
+Use Python 3.12 for local setup. On Windows, select it explicitly to use the tested interpreter and its prebuilt dependency wheels.
 
-The system automates the entire research lifecycle by delegating tasks to four specialized agents that work in sequence:
-
-| Step | Agent | Role |
-|------|-------|------|
-| 1 | **Search Agent** | Discovers relevant sources via Tavily web search |
-| 2 | **Reader Agent** | Scrapes and extracts content from the top-ranked source |
-| 3 | **Writer Chain** | Synthesizes findings into a structured research report |
-| 4 | **Critic Chain** | Reviews the report for accuracy, coherence, and quality |
-
-A **Streamlit UI** provides an intuitive interface for running research queries, viewing real-time progress, and downloading results.
-
----
-
-## 🏗️ Architecture
-
-```mermaid
-graph TB
-    %% ── External actor ──
-    Researcher((Researcher))
-
-    %% ── User Interface layer ──
-    subgraph UI["User Interface"]
-        StreamlitUI["Streamlit Interface<br/><i>app.py</i>"]
-        RunHistory["Run History<br/><i>app.py</i>"]
-    end
-
-    %% ── Research Workflow layer ──
-    subgraph Workflow["Research Workflow"]
-        Pipeline["Pipeline Orchestrator<br/><i>pipeline.py</i>"]
-        LLMFactory["LLM Factory<br/><i>agents.py</i>"]
-    end
-
-    %% ── Research Capabilities layer ──
-    subgraph Agents["Research Capabilities"]
-        SearchAgent["Search Agent<br/><i>agents.py</i>"]
-        ReaderAgent["Reader Agent<br/><i>agents.py</i>"]
-        WriterChain["Writer Chain<br/><i>agents.py</i>"]
-        CriticChain["Critic Chain<br/><i>agents.py</i>"]
-        WebSearchTool["Web Search Tool<br/><i>tools.py</i>"]
-        PageScraper["Page Scraper<br/><i>tools.py</i>"]
-    end
-
-    %% ── External Integrations ──
-    subgraph External["External Integrations"]
-        LLMProvider["LLM Provider"]
-        SourceWebsites["Source Websites"]
-        TavilySearch["Tavily Search"]
-    end
-
-    %% ── Connections ──
-    Researcher -->|submits topic| StreamlitUI
-    StreamlitUI -->|runs research| Pipeline
-    Pipeline -->|returns run state| StreamlitUI
-    StreamlitUI -->|records runs| RunHistory
-    RunHistory -->|supplies selection| StreamlitUI
-
-    Pipeline -->|invokes| SearchAgent
-    Pipeline -->|passes research| ReaderAgent
-    Pipeline -->|passes results| WriterChain
-    Pipeline -->|passes report| CriticChain
-
-    SearchAgent -->|calls| WebSearchTool
-    ReaderAgent -->|calls| PageScraper
-
-    WriterChain -->|uses model| LLMProvider
-    CriticChain -->|uses model| LLMProvider
-    SearchAgent -->|uses model| LLMProvider
-    ReaderAgent -->|uses model| LLMProvider
-
-    LLMFactory -.->|configures provider| LLMProvider
-
-    WebSearchTool -->|searches| TavilySearch
-    PageScraper -->|fetches pages| SourceWebsites
-
-    %% ── Styles ──
-    classDef agentNode fill:#c8e6c9,stroke:#388e3c,color:#1b5e20
-    classDef toolNode fill:#c8e6c9,stroke:#388e3c,color:#1b5e20
-    classDef workflowNode fill:#fff9c4,stroke:#f9a825,color:#5d4037
-    classDef uiNode fill:#bbdefb,stroke:#1976d2,color:#0d47a1
-    classDef externalNode fill:#ffcdd2,stroke:#c62828,color:#b71c1c
-    classDef actor fill:#e8eaf6,stroke:#3949ab,color:#1a237e
-
-    class SearchAgent,ReaderAgent,WriterChain,CriticChain,WebSearchTool,PageScraper agentNode
-    class Pipeline,LLMFactory workflowNode
-    class StreamlitUI,RunHistory uiNode
-    class LLMProvider,SourceWebsites,TavilySearch externalNode
-    class Researcher actor
+```powershell
+py -3.12 -m venv venv
+.\venv\Scripts\python.exe -m pip install --only-binary=:all: -r requirements.txt
+.\venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-### Data Flow
-
-```
-Researcher submits topic
-    │
-    ▼
-┌─────────────────────────────────────┐
-│  Streamlit UI  (app.py)             │
-│  Form → Progress → Results → Export │
-└──────────────┬──────────────────────┘
-               │ runs research
-               ▼
-┌─────────────────────────────────────┐
-│  Pipeline Orchestrator (pipeline.py)│
-└──────────────┬──────────────────────┘
-               │
-   ┌───────────┼───────────┬──────────────┐
-   ▼           ▼           ▼              ▼
-Search      Reader      Writer         Critic
-Agent       Agent       Chain          Chain
-   │           │           │              │
-   ▼           ▼           │              │
-web_search  scrape_url     │              │
-(Tavily)    (BS4)          │              │
-                           ▼              ▼
-                      LLM Provider   LLM Provider
-                    (OpenRouter / Gemini / Ollama)
-```
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Python 3.8+**
-- **API key** for at least one LLM provider (OpenRouter, Google Gemini, or Ollama)
-- **Tavily API key** for web search
-
-### Installation
+On macOS or Linux, use Python 3.12 to create the environment.
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/your-username/Multi_agent_Ai_research_system.git
-cd Multi_agent_Ai_research_system
-
-# 2. Create and activate a virtual environment
-python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # macOS / Linux
-
-# 3. Install dependencies
-pip install -r requirements.txt
-```
-
-### Environment Setup
-
-Create a `.env` file in the project root:
-
-```env
-# ── LLM Provider (pick one) ──────────────────────────
-LLM_PROVIDER=openrouter          # openrouter | gemini | ollama
-
-# OpenRouter (default — free models available)
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=meta-llama/llama-3.1-8b-instruct:free
-
-# Google Gemini (free tier — 1M tokens/day)
-GOOGLE_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.5-flash
-
-# Ollama (local, no key needed — just install & run Ollama)
-OLLAMA_MODEL=qwen2.5:0.5b
-
-# ── Web Search ────────────────────────────────────────
-TAVILY_API_KEY=your_tavily_key_here
-```
-
-### Run the Application
-
-```bash
-# Start the Streamlit web interface
+python3.12 -m venv .venv
+# Activate .venv for your shell, then run:
+python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
-The app opens automatically at **http://localhost:8501**.
+Use a [Tavily free account](https://docs.tavily.com/documentation/api-credits) and at least one inference provider. Put these variables in an untracked local .env file or in Streamlit Community Cloud's Secrets settings.
 
-<details>
-<summary><b>Alternative run commands</b></summary>
+```dotenv
+TAVILY_API_KEY=...
+GROQ_API_KEY=...
+LLM_PROVIDER=groq
+```
+
+For Streamlit Secrets, put the same keys at the top level in TOML and quote the values. Community Cloud uses app.py as the entry point and requirements.txt for dependencies. Keep provider accounts on unbilled plans. API keys generally cannot tell the app whether billing has been enabled on the account.
+
+The pipeline also runs from the CLI.
 
 ```bash
-# Windows — explicit venv path
-.venv\Scripts\python.exe -m streamlit run app.py
-
-# Custom port
-python -m streamlit run app.py --server.port 8000
-
-# Headless (no browser auto-open)
-python -m streamlit run app.py --server.headless true
-
-# Run pipeline directly in terminal (no UI)
-python pipeline.py
-```
-</details>
-
----
-
-## 🧩 Core Components
-
-### LLM Factory (`agents.py`)
-
-Automatic provider selection with a configurable `LLM_PROVIDER` environment variable:
-
-| Provider | Model | Notes |
-|----------|-------|-------|
-| **OpenRouter** (default) | `meta-llama/llama-3.1-8b-instruct:free` | Unified gateway, free models available |
-| **Google Gemini** | `gemini-2.5-flash` | Free tier: 15 req/min, 1M tokens/day |
-| **Ollama** | `qwen2.5:0.5b` | 100% local, no API key needed |
-
-All models run at **temperature 0** for deterministic, reproducible output. The LLM is instantiated lazily — the UI loads even if the API key is missing.
-
-### Agent Layer (`agents.py`)
-
-| Agent | Type | Tool | Input → Output |
-|-------|------|------|-----------------|
-| **Search Agent** | ReAct (LangGraph) | `web_search` | Topic → 3 ranked results (title, URL, snippet) |
-| **Reader Agent** | ReAct (LangGraph) | `scrape_url` | Search results → Clean text from best URL (1500 chars) |
-| **Writer Chain** | LCEL Pipeline | — | Research + topic → Structured report (Intro, Findings, Conclusion, Sources) |
-| **Critic Chain** | LCEL Pipeline | — | Report → Score/10 + Strengths + Improvements + Verdict |
-
-### Tools Layer (`tools.py`)
-
-| Tool | Provider | Description |
-|------|----------|-------------|
-| `web_search(query)` | Tavily API | Searches the web, returns 3 results with titles, URLs, and 300-char snippets |
-| `scrape_url(url)` | BeautifulSoup | Fetches a page, strips `<script>`, `<style>`, `<nav>`, `<footer>`, returns 1500 chars of clean text |
-
-### Pipeline Orchestrator (`pipeline.py`)
-
-Runs the four agents sequentially, passing state between each step:
-
-```
-Search Agent → state['search_results']
-    ↓
-Reader Agent → state['scraped_content']
-    ↓
-Writer Chain → state['report']
-    ↓
-Critic Chain → state['feedback']
-    ↓
-return state → Streamlit UI
+python pipeline.py --mode deep "How do LFP and sodium-ion batteries compare for grid storage?"
+python -m unittest -v
 ```
 
-### UI Layer (`app.py`)
+## How the agents work
 
-- **Dark-themed Streamlit** interface with custom CSS
-- **Research form** with topic input and pipeline trigger
-- **Real-time progress** indicator across all 4 stages
-- **Tabbed results**: Report · Critic Feedback · Search Results · Scraped Content
-- **Research history** sidebar with quick-access to previous runs
-- **Markdown export** — download final reports with one click
-
----
-
-## 📁 Project Structure
-
-```
-.
-├── app.py               # Streamlit UI — form, progress, results, history
-├── pipeline.py          # Pipeline orchestrator — 4-step sequential workflow
-├── agents.py            # Agent definitions & LLM factory (Search, Reader, Writer, Critic)
-├── tools.py             # Tool implementations (Tavily web search, BeautifulSoup scraper)
-├── requirements.txt     # Python dependencies
-├── test_pipeline.py     # Test suite
-├── .env                 # API keys (not committed)
-└── README.md            # This file
+```mermaid
+flowchart LR
+    UI[Streamlit or CLI] --> S[Search agent]
+    S --> R[Reader agent]
+    R --> W[Writer agent]
+    W --> C[Critic agent]
+    C -->|Reviewed or incomplete| O[Report and evidence]
+    C -->|Deep and missing evidence| S
+    C -->|Deep and repairable claim| W
 ```
 
----
+| Role | Decision | Tools and output |
+| --- | --- | --- |
+| Search | Identify the facets of the question and plan distinct searches. On a follow-up, focus on the specific evidence gap. | Tavily basic search, canonical-URL deduplication, source candidates with stable IDs. |
+| Reader | Select the excerpts that support each facet, including relevant disagreements or gaps. | Bounded public-page retrieval, passage ranking, and exact quote validation against retrieved content. |
+| Writer | Synthesize the evidence and qualify claims and uncertainty. | A streamed Markdown draft citing evidence inline as [S1], [S2], and so on. |
+| Critic | Compare the draft's claims and citations with their supporting excerpts. | Structured findings plus deterministic checks for missing, unknown, or outside citations. |
 
-## 🎯 Features
+LangChain provides the model adapters, prompt templates and structured response parsing. LangGraph stores the query plan, sources, evidence, draft, findings and counters in typed state. Each run has an in-memory checkpoint and can retry a failed stage once while its Streamlit session remains active. Process restarts and browser-session resets clear history and checkpoints.
 
-- **End-to-end automation** — From topic input to polished, reviewed report
-- **Multi-provider LLM support** — OpenRouter, Google Gemini, or local Ollama
-- **Real-time progress tracking** — Watch each agent complete its work
-- **Result transparency** — Inspect raw search results and scraped content
-- **Research history** — Revisit and compare previous runs
-- **One-click export** — Download reports as Markdown
-- **Graceful error handling** — Informative messages for missing keys, network failures, and bad input
-- **Lazy initialization** — UI loads instantly; LLM connects only when needed
+The system ranks Tavily results by relevance and publisher diversity, extracts the useful parts of selected HTML pages, and preserves original URLs and excerpts for citation review. It also supports snippet-only evidence when a page is unavailable and labels that evidence in the UI. Page content is treated as untrusted data. The reader validates public addresses on each redirect, pins the connection to a validated address, and limits body size and concurrency. Successful public page reads use a bounded 15-minute cache. Search results are cached within the run.
 
----
+## Research modes
 
-## 📊 Performance
+| Budget | Fast Research | Deep Research |
+| --- | ---: | ---: |
+| Search requests before a manual retry | Up to 2 | Up to 4 |
+| Candidate source limit | 8 | 16 |
+| Page fetch slots | 3 | 8 |
+| Estimated evidence token budget | 2,500 | 4,500 |
+| Model calls on a clean pass | 4 | 4 |
+| Automated feedback cycles | 0 | 1 |
+| Network model attempts, including fallbacks | Up to 7 | Up to 13 |
+| Time budget per attempt | 50 seconds | 105 seconds |
 
-| Metric | Value |
-|--------|-------|
-| End-to-end runtime | ~30–60 seconds |
-| Search results per query | 3 |
-| Scrape content limit | 1,500 characters |
-| LLM temperature | 0 (deterministic) |
-| Execution mode | Sequential (no parallelism) |
-| Caching | None (fresh data every run) |
+Fast visits all four roles once and exposes any unresolved issues. Deep reserves retrieval capacity for a potential follow-up. A Critic finding can send it back to Search for missing evidence or to Writer for a targeted repair. A full evidence revisit adds up to four primary model calls. A revision adds up to two. Both go through the Critic again. A manual retry can use one extra basic search request and remains within the model attempt budget. Token estimates and deadlines are app-side budgeting aids. Provider usage, when available, appears separately in the run trace.
 
----
+## Model routing
 
-## 💡 Use Cases
+| Provider | Setup | Route |
+| --- | --- | --- |
+| [Groq](https://console.groq.com/docs/rate-limits) | GROQ_API_KEY | GPT-OSS 20B for Search, Reader, and Fast writing and review. Deep uses GPT-OSS 120B for writing and Qwen 3.8 27B for structured review so they have separate model allowances. Each can fall back to the other when eligible. |
+| [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/platform/pricing/) | CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN | Optional independent fallback using matching GPT-OSS models. Verify access and capacity under Workers Free. |
+| [OpenRouter](https://openrouter.ai/collections/free-models) | OPENROUTER_API_KEY | Optional fallback or the primary route for an existing OpenRouter-only setup. Defaults to google/gemma-4-26b-a4b-it:free. OPENROUTER_MODEL accepts explicit free variants. |
+| [Gemini](https://aistudio.google.com/docs/pricing) | GOOGLE_API_KEY or GEMINI_API_KEY | Explicit opt-in with LLM_PROVIDER=gemini or through the fallback list. Defaults to Gemini 3.1 Flash-Lite and 3.8 Flash. GEMINI_MODEL can choose either. Confirm [eligibility and terms](https://aistudio.google.com/docs/terms) for the deployment and audience. |
+| [Ollama](https://ollama.com/) | LLM_PROVIDER=ollama and an available local server | OLLAMA_MODEL and OLLAMA_BASE_URL are configurable. Use a model able to return structured responses. |
 
-- **Academic Research** — Literature review and synthesis
-- **Technical Discovery** — Explore new technologies and frameworks
-- **Business Intelligence** — Market analysis and competitive research
-- **News & Trends** — Current events synthesis and summarization
-- **Knowledge Work** — Rapid information gathering and organization
+Set LLM_FALLBACK_PROVIDERS=cloudflare,openrouter to opt into both public fallback routes. Only configured routes are used. If LLM_PROVIDER is unset, auto-selection looks for configured Groq, Cloudflare, then OpenRouter credentials. Gemini and Ollama require explicit selection. Old deployments with obsolete model IDs should update or remove their model overrides.
 
----
+Tavily uses basic search with auto-escalation disabled. The app enforces per-run ceilings, process-local Tavily and Groq/OpenRouter quotas, and a small concurrency limit. Keep the providers' free-plan limits in place across restarts and instances. When a route is busy, the stage can try another eligible route. If none is available, the run keeps its checkpoint and shows the estimated wait when known. Clicking Retry before that wait expires preserves the retry and does not send a model request.
 
-## 🐛 Troubleshooting
+## Demonstrate the workflow
 
-| Problem | Solution |
-|---------|----------|
-| `ModuleNotFoundError: streamlit` | `pip install streamlit` |
-| `API key not found` | Add the correct key to `.env` and restart |
-| Port 8501 in use | Use `--server.port 8000` |
-| Empty search results | Check internet connection and Tavily API quota |
-| Ollama not reachable | Start Ollama and run `ollama pull qwen2.5:0.5b` |
+- Run a Fast comparison and open **Run details**. Look for one Search, Reader, Writer, and Critic stage. Open a cited source to see the actual excerpt and its original URL.
+- Run a Deep question with several facets. If the Critic identifies a material gap, the trace explains the transition back to Search. A report issue that can be fixed with existing evidence routes to Writer. The offline Deep fixtures exercise both transitions deterministically.
+- To see partial recovery without external calls, run the offline critic-timeout test. It verifies that the original draft is retained and the retry invokes only the Critic.
 
----
+The offline suite uses real LangGraph and Streamlit AppTest with scripted provider and retrieval responses. For live comparisons, run equivalent questions with free credentials and record startup, first usable source, first draft, final completion, per-stage timings, calls, tokens, and outcome. Judge report coverage and whether cited excerpts support each claim. Keep offline timings separate from live provider or cloud-wake measurements.
 
-## 🔧 Development
+### Local comparison against the original revision
 
-### Running Tests
-
-```bash
-python -m pytest test_pipeline.py -v
-```
-
-### Adding a New Agent
-
-1. Define the agent builder in `agents.py`
-2. Add the step in `pipeline.py` → `run_research_pipeline()`
-3. Wire the results into the Streamlit UI in `app.py`
-
-### Adding a New Tool
-
-1. Implement the tool function in `tools.py` with the `@tool` decorator
-2. Pass it to the agent's `create_agent(tools=[...])` call in `agents.py`
-
----
-
-## 🚧 Future Enhancements
-
-- Multi-source synthesis — scrape and combine multiple URLs
-- Fact verification — cross-check claims across sources
-- Domain specialization — custom agents for specific research fields
-- Persistent memory — context for follow-up queries
-- Advanced export — PDF, JSON, structured data formats
-- Batch processing — research multiple topics in sequence
-- Caching — store results for repeated queries
-
----
-
-## 📝 License
-
-[Add your license here]
-
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to open issues or submit pull requests.
+With Python 3.12 and Streamlit 1.67, three paired fresh-process AppTest runs measured a median time to first script render of **1.66 s before and 0.68 s after**, including the testing framework import. The median of the warm rerun medians was **16 ms before and 20 ms after**. A matched offline search-and-read fixture used **six model turns before and four in Fast mode**, with one search and one page fetch in both versions. These measurements cover local rendering and scripted orchestration.
